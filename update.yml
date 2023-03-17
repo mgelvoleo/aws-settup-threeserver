@@ -1,0 +1,22 @@
+---
+- name: Update servers
+  hosts: all
+  become: true
+  tasks:
+    - name: Update Debian
+      when: ansible_os_family == "Debian"
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Update Ubuntu
+      when: ansible_os_family == "Ubuntu"
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Update CentOS
+      when: ansible_os_family == "RedHat"
+      yum:
+        name: "*"
+        state: latest

@@ -1,0 +1,126 @@
+---
+- hosts: all
+  become: true
+  
+  vars:
+    minikube_version: latest
+    kubectl_version: 1.26.2
+    docker_packages:
+      - docker-ce
+      - docker-ce-cli 
+      - containerd.io 
+      - docker-buildx-plugin
+      - docker-compose-plugin
+    
+
+  tasks:
+
+    - name: Update repo cache (Ubuntu)
+      apt:
+        update_cache: yes
+      when: ansible_distribution == "Ubuntu"
+
+    - name: Update repo cache (RedHat)
+      yum:
+        name: "*"
+        state: latest
+      when: ansible_os_family == "Redhat"
+
+    - name: Install OpenJDK
+      apt:
+        name: openjdk-11-jdk
+        state: present
+      when: ansible_hostname == "jenkins"
+    
+    - name: Add Jenkins GPG Key
+      apt_key:
+        url: https://pkg.jenkins.io/debian-stable/jenkins.io.key
+        state: present
+      when: ansible_hostname == "jenkins"
+   
+    - name: Add Jenkins Repository
+      apt_repository:
+        repo: deb https://pkg.jenkins.io/debian-stable binary/
+        state: present
+        update_cache: yes
+        filename: jenkins
+      when: ansible_hostname == "jenkins"
+    
+    - name: Install Jenkins
+      apt:
+        name: jenkins
+        state: present
+      when: ansible_hostname == "jenkins"
+   
+    - name: Start Jenkins Service
+      service:
+        name: jenkins
+        state: started
+      when: ansible_hostname == "jenkins"
+      
+    - name: Install pip for Python3
+      apt:
+        name: python3-pip
+        state: present  
+      when: ansible_hostname == "ansible"
+ 
+    - name: Install Ansible
+      pip:
+        name: ansible
+        executable: pip3
+        state: present
+      when: ansible_hostname == "ansible"
+
+    
+    - name: Install dependencies
+      yum:
+        name: "{{ item }}"
+        state: present
+      loop:
+        - yum-utils
+        - device-mapper-persistent-data
+        - lvm2 
+      when: ansible_hostname == "kubernetes"
+
+
+
+    - name: Add Docker repository
+      yum_repository:
+        name: docker-ce-stable
+        description: Docker CE Stable - $basearch
+        baseurl: https://download.docker.com/linux/centos/7/$basearch/stable
+        enabled: yes
+        gpgcheck: yes
+        gpgkey: https://download.docker.com/linux/centos/gpg
+      when: ansible_hostname == "kubernetes"
+
+   
+    - name: Install Docker
+      yum:
+        name: "{{ docker_packages }}"
+        state: latest
+      when: ansible_hostname == "kubernetes"
+
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+      when: ansible_hostname == "kubernetes"
+
+     
+    - name: Install kubectl
+      get_url:
+        url: https://dl.k8s.io/release/v{{ kubectl_version }}/bin/linux/amd64/kubectl 
+        dest: /tmp/kubectl
+        mode: '0755'
+        validate_certs: no
+      when: ansible_hostname == "kubernetes"
+
+    - name: Install Minikube
+      get_url:
+        url: https://storage.googleapis.com/minikube/releases/{{ minikube_version }}/minikube-linux-amd64
+        dest: /usr/local/bin/minikube
+        mode: 'u+x,g+x'
+      when: ansible_hostname == "kubernetes"
+
