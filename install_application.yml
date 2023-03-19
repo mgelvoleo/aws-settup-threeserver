@@ -3,6 +3,7 @@
   become: true
   
   vars:
+    docker_user: ansible
     minikube_version: latest
     kubectl_version: 1.26.2
     docker_packages:
@@ -108,6 +109,12 @@
         state: started
       when: ansible_hostname == "kubernetes"
 
+    - name: Add user to docker group
+      user:
+        name: "{{ docker_user }}"
+        groups: docker
+        append: yes
+      when: ansible_hostname == "kubernetes"
      
     - name: Install kubectl
       get_url:
@@ -124,3 +131,52 @@
         mode: 'u+x,g+x'
       when: ansible_hostname == "kubernetes"
 
+    - name: Create Minikube directory
+      file:
+        path: /home/ansible/.minikube
+        state: directory
+        mode: '0755'
+        owner: ansible
+      when: ansible_hostname == "kubernetes"
+
+    - name: Set ownership and permissions for minikube binary
+      file:
+        path: /usr/local/bin/minikube
+        owner: root
+        group: "{{ docker_user }}"
+        mode: '0755'
+      when: ansible_hostname == "kubernetes"
+
+    - name: Set up Minikube environment
+      shell: /usr/local/bin/minikube config set driver docker
+      args:
+        executable: /bin/bash
+        creates: /home/ansible/.minikube/config
+      when: ansible_hostname == "kubernetes"
+
+
+    - name: Start Minikube cluster
+      become_user: ansible
+      shell: /usr/local/bin/minikube start
+      args:
+        executable: /bin/bash
+      environment:
+        HOME: /home/ansible
+      when: ansible_hostname == "kubernetes"
+
+    - name: Add Minikube and Kubectl to PATH
+      lineinfile:
+        dest: /home/ansible/.bashrc
+        line: 'export PATH="$PATH:/usr/local/bin/minikube:/usr/local/bin/kubectl"'
+        create: yes
+      when: ansible_hostname == "kubernetes"
+
+
+    - name: Reload Bash profile
+      shell: source /home/ansible/.bashrc
+      args:
+        executable: /bin/bash
+      environment:
+        HOME: /home/ansible
+      when: ansible_hostname == "kubernetes"  
+     
